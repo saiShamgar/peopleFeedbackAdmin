@@ -14,7 +14,6 @@ import android.view.MenuItem;
 import android.view.View;
 import android.widget.Toast;
 
-import com.google.firebase.FirebaseApp;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
@@ -51,7 +50,6 @@ public class MainActivity extends AppCompatActivity {
         progressDialog.show();
 
         mAuth=FirebaseAuth.getInstance();
-
         gettingSpammedKeys();
     }
 
@@ -80,7 +78,6 @@ public class MainActivity extends AppCompatActivity {
                                 Users.add(child.child("user").getValue().toString());
 //                                for (DataSnapshot innerChild:child.child("Spam").getChildren()){
 //                                   // Log.e("users",innerChild.getKey());
-//
 //                                }
                             }
                         }
@@ -100,6 +97,8 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onCancelled(DatabaseError databaseError) {
                 progressDialog.dismiss();
+
+                    Toast.makeText(getApplicationContext()," no spammed data ",Toast.LENGTH_SHORT).show();
             }
         };
         numofFol.addValueEventListener(valueEventListener1);
@@ -121,6 +120,12 @@ public class MainActivity extends AppCompatActivity {
              startActivity(addpost);
          }
 
+        if (item.getItemId()==R.id.signOut){
+            mAuth.signOut();
+            Intent addpost=new Intent(MainActivity.this,LoginPage.class);
+            startActivity(addpost);
+            finish();
+        }
          return true;
     }
 }

@@ -117,8 +117,6 @@ public class SpammedRecyclerAdapter extends RecyclerView.Adapter<SpammedRecycler
                             public void onComplete(@NonNull Task<Void> task) {
                                 if (task.isSuccessful()){
                                     Toast.makeText(context,"post deleted",Toast.LENGTH_SHORT).show();
-
-
                                 }
                             }
                         });

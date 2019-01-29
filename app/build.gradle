@@ -4,7 +4,7 @@ android {
     compileSdkVersion 27
     defaultConfig {
         applicationId "com.shamgar.peoplefeedbackadmin"
-        minSdkVersion 15
+        minSdkVersion 16
         targetSdkVersion 27
         versionCode 1
         versionName "1.0"
@@ -42,6 +42,7 @@ dependencies {
     implementation 'com.google.firebase:firebase-storage:16.0.1'
 
     implementation 'com.firebaseui:firebase-ui-database:3.2.2'
+    implementation 'com.firebaseui:firebase-ui:3.2.2'
     implementation 'com.google.android.gms:play-services-auth:15.0.1'
 
 

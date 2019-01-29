@@ -7,4 +7,7 @@
         android:icon="@drawable/ic_add_black_24dp"
         app:showAsAction="always"></item>
 
+    <item android:id="@+id/signOut"
+        android:title="Sign out"></item>
+
 </menu>

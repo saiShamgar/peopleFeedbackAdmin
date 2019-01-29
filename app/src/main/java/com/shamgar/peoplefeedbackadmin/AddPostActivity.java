@@ -9,11 +9,20 @@ import android.provider.MediaStore;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.ImageView;
+import android.widget.Spinner;
 import android.widget.Toast;
 
+import com.google.firebase.database.DataSnapshot;
+import com.google.firebase.database.DatabaseError;
+import com.google.firebase.database.FirebaseDatabase;
+import com.google.firebase.database.Query;
+import com.google.firebase.database.ValueEventListener;
 import com.karumi.dexter.Dexter;
 import com.karumi.dexter.MultiplePermissionsReport;
 import com.karumi.dexter.PermissionToken;
@@ -23,6 +32,7 @@ import com.karumi.dexter.listener.PermissionRequestErrorListener;
 import com.karumi.dexter.listener.multi.MultiplePermissionsListener;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 public class AddPostActivity extends AppCompatActivity {
@@ -33,6 +43,12 @@ public class AddPostActivity extends AppCompatActivity {
 
     private ImageView uploadedImage;
     private Button uploadButton;
+    private Spinner spinnerState,spinnerDistrict,spinnerConstituency;
+    private ArrayAdapter stateAdapter,districtAdapter,constituencyAdapter;
+    private ArrayList<String> state=new ArrayList<>();
+    private ArrayList<String> districts=new ArrayList<>();
+    private ArrayList<String> constituency=new ArrayList<>();
+    private String currentState,currentDistrict,currentConstituency;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -46,6 +62,9 @@ public class AddPostActivity extends AppCompatActivity {
         }
         uploadedImage=findViewById(R.id.uploadedImage);
         uploadButton=findViewById(R.id.uploadButton);
+        spinnerState=findViewById(R.id.spinnerState);
+        spinnerDistrict=findViewById(R.id.spinnerDistrict);
+        spinnerConstituency=findViewById(R.id.spinnerConstituency);
 
         uploadButton.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -53,6 +72,111 @@ public class AddPostActivity extends AppCompatActivity {
                 showPictureDialog();
             }
         });
+
+        getStates();
+    }
+
+    private void getDistricts(final String currentState) {
+        Query query= FirebaseDatabase.getInstance().getReference().child("States")
+                .child(currentState).child("MLA").child("district");
+        ValueEventListener valueEventListener=new ValueEventListener() {
+            @Override
+            public void onDataChange(DataSnapshot dataSnapshot) {
+                if (dataSnapshot.exists()){
+                    districts.clear();
+                    for (DataSnapshot states:dataSnapshot.getChildren()){
+                        Log.e("states",states.getKey());
+                        districts.add(states.getKey());
+                    }
+                    districtAdapter= new ArrayAdapter(getApplicationContext(),android.R.layout.simple_spinner_item,districts);
+                    districtAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+                    spinnerDistrict.setAdapter(districtAdapter);
+
+                    spinnerDistrict.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+                        @Override
+                        public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                            currentDistrict=parent.getSelectedItem().toString();
+                            getConstituency(currentState,currentDistrict);
+                        }
+
+                        @Override
+                        public void onNothingSelected(AdapterView<?> parent) {
+
+                        }
+                    });
+                }
+            }
+
+            @Override
+            public void onCancelled(DatabaseError databaseError) {
+
+            }
+        };
+        query.addValueEventListener(valueEventListener);
+    }
+
+    private void getConstituency(String state, String currentDistrict) {
+        Query query= FirebaseDatabase.getInstance().getReference().child("States")
+                .child(state).child("MLA").child("district").child(currentDistrict).child("Constituancy");
+        ValueEventListener valueEventListener=new ValueEventListener() {
+            @Override
+            public void onDataChange(DataSnapshot dataSnapshot) {
+                if (dataSnapshot.exists()){
+                    constituency.clear();
+                    for (DataSnapshot states:dataSnapshot.getChildren()){
+                        Log.e("states",states.getKey());
+                        constituency.add(states.getKey());
+                    }
+                    constituencyAdapter= new ArrayAdapter(getApplicationContext(),android.R.layout.simple_spinner_item,constituency);
+                    constituencyAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+                    spinnerConstituency.setAdapter(constituencyAdapter);
+                }
+            }
+
+            @Override
+            public void onCancelled(DatabaseError databaseError) {
+
+            }
+        };
+        query.addValueEventListener(valueEventListener);
+    }
+
+    private void getStates(){
+        Query query= FirebaseDatabase.getInstance().getReference().child("States");
+        ValueEventListener valueEventListener=new ValueEventListener() {
+            @Override
+            public void onDataChange(DataSnapshot dataSnapshot) {
+              if (dataSnapshot.exists()){
+                  state.clear();
+                  for (DataSnapshot states:dataSnapshot.getChildren()){
+                      Log.e("states",states.getKey());
+                      state.add(states.getKey());
+                  }
+                  stateAdapter= new ArrayAdapter(getApplicationContext(),android.R.layout.simple_spinner_item,state);
+                  stateAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+                  spinnerState.setAdapter(stateAdapter);
+
+                  spinnerState.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+                      @Override
+                      public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                          currentState=parent.getSelectedItem().toString();
+                          getDistricts(currentState);
+                      }
+
+                      @Override
+                      public void onNothingSelected(AdapterView<?> parent) {
+
+                      }
+                  });
+              }
+            }
+
+            @Override
+            public void onCancelled(DatabaseError databaseError) {
+
+            }
+        };
+        query.addValueEventListener(valueEventListener);
     }
 
     private void  requestMultiplePermissions(){
