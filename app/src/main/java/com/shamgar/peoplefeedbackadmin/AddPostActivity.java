@@ -4,8 +4,11 @@ import android.Manifest;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.graphics.Bitmap;
+import android.graphics.drawable.BitmapDrawable;
 import android.net.Uri;
+import android.provider.ContactsContract;
 import android.provider.MediaStore;
+import android.support.annotation.NonNull;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
@@ -14,15 +17,23 @@ import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.Spinner;
 import android.widget.Toast;
 
+import com.google.android.gms.tasks.OnCompleteListener;
+import com.google.android.gms.tasks.OnFailureListener;
+import com.google.android.gms.tasks.OnSuccessListener;
+import com.google.android.gms.tasks.Task;
 import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.Query;
 import com.google.firebase.database.ValueEventListener;
+import com.google.firebase.storage.FirebaseStorage;
+import com.google.firebase.storage.StorageReference;
+import com.google.firebase.storage.UploadTask;
 import com.karumi.dexter.Dexter;
 import com.karumi.dexter.MultiplePermissionsReport;
 import com.karumi.dexter.PermissionToken;
@@ -30,9 +41,14 @@ import com.karumi.dexter.listener.DexterError;
 import com.karumi.dexter.listener.PermissionRequest;
 import com.karumi.dexter.listener.PermissionRequestErrorListener;
 import com.karumi.dexter.listener.multi.MultiplePermissionsListener;
+import com.shamgar.peoplefeedbackadmin.models.Posts;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Date;
 import java.util.List;
 
 public class AddPostActivity extends AppCompatActivity {
@@ -42,13 +58,16 @@ public class AddPostActivity extends AppCompatActivity {
     private Bitmap bmp;
 
     private ImageView uploadedImage;
-    private Button uploadButton;
+    private EditText imageDescription;
+    private Button uploadButton,adminPostSubmitButton;
     private Spinner spinnerState,spinnerDistrict,spinnerConstituency;
     private ArrayAdapter stateAdapter,districtAdapter,constituencyAdapter;
     private ArrayList<String> state=new ArrayList<>();
     private ArrayList<String> districts=new ArrayList<>();
     private ArrayList<String> constituency=new ArrayList<>();
     private String currentState,currentDistrict,currentConstituency;
+
+    private String imageId;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -65,6 +84,8 @@ public class AddPostActivity extends AppCompatActivity {
         spinnerState=findViewById(R.id.spinnerState);
         spinnerDistrict=findViewById(R.id.spinnerDistrict);
         spinnerConstituency=findViewById(R.id.spinnerConstituency);
+        adminPostSubmitButton=findViewById(R.id.adminPostSubmitButton);
+        imageDescription=findViewById(R.id.imageDescription);
 
         uploadButton.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -74,9 +95,289 @@ public class AddPostActivity extends AppCompatActivity {
         });
 
         getStates();
+
+        adminPostSubmitButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                if (currentState ==null || currentDistrict==null || currentConstituency == null){
+                    Log.e("empty","empty");
+                }
+                else {
+                    if(currentState=="Select state" || currentDistrict=="Select district" || currentConstituency=="Select constituency"){
+                        Log.e("note","please check fields");
+                        return;
+                    }
+                    if (bmp!=null){
+                        pushImageToFirebase();
+                    }
+                    else {
+                        Log.e("note","please add image");
+                        Toast.makeText(getApplicationContext(),"please add image",Toast.LENGTH_LONG).show();
+                    }
+                }
+            }
+        });
+    }
+
+    private void postintoSingleConstituency(String postKeyddf) {
+        FirebaseDatabase.getInstance().getReference().child("india")
+                .child(currentState)
+                .child(currentDistrict)
+                .child("constituancy")
+                .child(currentConstituency)
+                .child("PostID")
+                .child(postKeyddf)
+                .setValue("1").addOnCompleteListener(new OnCompleteListener<Void>() {
+            @Override
+            public void onComplete(@NonNull Task<Void> task) {
+                Toast.makeText(AddPostActivity.this,"posted in single con",Toast.LENGTH_SHORT).show();
+            }
+        });
+    }
+
+
+    private void pushImageToFirebase() {
+
+        FirebaseStorage storage = FirebaseStorage.getInstance();
+
+        // Create a storage reference from our app
+        StorageReference storageRef = storage.getReference();
+
+        imageId = FirebaseDatabase.getInstance().getReference().push().getKey();
+        imageId = "images/"+imageId+".jpg";
+        // Create a reference to 'images/mountains.jpg'
+        StorageReference mountainImagesRef = storageRef.child(imageId);
+
+        // Get the data from an ImageView as bytes
+        uploadedImage.setDrawingCacheEnabled(true);
+        uploadedImage.buildDrawingCache();
+        Bitmap bitmap = ((BitmapDrawable) uploadedImage.getDrawable()).getBitmap();
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        bitmap.compress(Bitmap.CompressFormat.JPEG, 100, baos);
+        byte[] data = baos.toByteArray();
+
+        UploadTask uploadTask = mountainImagesRef.putBytes(data);
+        uploadTask.addOnFailureListener(new OnFailureListener() {
+            @Override
+            public void onFailure(@NonNull Exception exception) {
+                // Handle unsuccessful uploads
+            }
+        }).addOnSuccessListener(new OnSuccessListener<UploadTask.TaskSnapshot>() {
+            @Override
+            public void onSuccess(UploadTask.TaskSnapshot taskSnapshot) {
+                Toast.makeText(AddPostActivity.this, "success image posted", Toast.LENGTH_SHORT).show();
+//                Log.e("gggg", "sssssssd");
+
+                //get the url for the image
+                getUrlForDownload();
+            }
+        });
+    }
+
+    private void getUrlForDownload() {
+
+        FirebaseStorage storage = FirebaseStorage.getInstance();
+
+        // Create a storage reference from our app
+        StorageReference storageRef = storage.getReferenceFromUrl("gs://peoplesfeedback-124ba.appspot.com/");
+        final StorageReference pathReference = storageRef.child(imageId);
+
+        pathReference.getDownloadUrl().addOnSuccessListener(new OnSuccessListener<Uri>() {
+            @Override
+            public void onSuccess(Uri uri) {
+
+                // Toast.makeText(CameraActivity.this, "" + pathReference.getDownloadUrl(), Toast.LENGTH_SHORT).show();
+                Log.e("url", "" + uri.toString());
+
+                Date now=new Date();
+
+                Posts posts=new Posts("+919642542514","17.7431926","83.3062349","",uri.toString(),"",imageDescription.getText().toString(),"","","","","","");
+                postIntoFirebase(posts);
+
+            }
+        }).addOnFailureListener(new OnFailureListener() {
+            @Override
+            public void onFailure(@NonNull Exception e) {
+
+            }
+        });
+    }
+
+    private void postIntoFirebase(Posts posts) {
+        final String postKey = FirebaseDatabase.getInstance().getReference().push().getKey();
+        FirebaseDatabase.getInstance().getReference().child("Posts").child(postKey).setValue(posts).addOnCompleteListener(new OnCompleteListener<Void>() {
+            @Override
+            public void onComplete(@NonNull Task<Void> task) {
+                if(task.isSuccessful()){
+                    Toast.makeText(AddPostActivity.this,"Success Post",Toast.LENGTH_SHORT).show();
+
+                    if (currentState=="All"){
+                        postIntoAllStates(postKey);
+                    }
+
+                    if (currentDistrict=="All" && currentState!="All" && currentState!="Select state"){
+                        Log.e("note","posted in all districts");
+                        postedInAllDistricts(currentState,postKey);
+                    }
+
+                    if (currentConstituency=="All" && currentState!="All" && currentState!="Select state" &&
+                            currentDistrict!="All" && currentDistrict!="Select district"){
+                        Log.e("note","posted in all constituencies");
+
+                        postedInAllConstituencies(currentState,currentDistrict,postKey);
+                    }
+
+                    if (currentConstituency!="Select constituency" &&currentConstituency!="All" && currentState!="All" && currentState!="Select state" &&
+                            currentDistrict!="All" && currentDistrict!="Select district"){
+                        Log.e("note","posted in single constituency");
+
+                        postintoSingleConstituency(postKey);
+                    }
+                }
+            }
+        });
+
+    }
+
+    private void postIntoAllStates(final String postKey) {
+        Query query= FirebaseDatabase.getInstance().getReference().child("States");
+        ValueEventListener valueEventListener=new ValueEventListener() {
+            @Override
+            public void onDataChange(DataSnapshot dataSnapshot) {
+                if (dataSnapshot.exists()){
+                    for (DataSnapshot states:dataSnapshot.getChildren()){
+                        Log.e("states",states.getKey());
+                        for (DataSnapshot districts: states.child("MLA").child("district").getChildren()){
+                            Log.e("districts",districts.getKey());
+                            for (DataSnapshot constituencies:districts.child("Constituancy").getChildren()){
+                                Log.e("constituencies",constituencies.getKey());
+                                FirebaseDatabase.getInstance().getReference().child("india")
+                                        .child(states.getKey())
+                                        .child(districts.getKey())
+                                        .child("constituancy")
+                                        .child(constituencies.getKey())
+                                        .child("PostID")
+                                        .child(postKey)
+                                        .setValue("1").addOnCompleteListener(new OnCompleteListener<Void>() {
+                                    @Override
+                                    public void onComplete(@NonNull Task<Void> task) {
+                                        Toast.makeText(AddPostActivity.this,"posted in state con",Toast.LENGTH_SHORT).show();
+
+                                    }
+                                });
+                            }
+
+                        }
+                    }
+                }
+            }
+
+            @Override
+            public void onCancelled(DatabaseError databaseError) {
+
+            }
+        };
+        query.addValueEventListener(valueEventListener);
+
+    }
+
+    private void postedInAllDistricts(final String state, final String key) {
+        Query query= FirebaseDatabase.getInstance().getReference().child("States");
+        ValueEventListener valueEventListener=new ValueEventListener() {
+            @Override
+            public void onDataChange(DataSnapshot dataSnapshot) {
+                if (dataSnapshot.exists()){
+                    for (DataSnapshot states:dataSnapshot.getChildren()){
+                        Log.e("states",states.getKey());
+                        if(states.getKey().equalsIgnoreCase(state)){
+                            for (DataSnapshot districts: states.child("MLA").child("district").getChildren()){
+                                Log.e("districts",districts.getKey());
+                                for (DataSnapshot constituencies:districts.child("Constituancy").getChildren()){
+                                    Log.e("constituencies",constituencies.getKey());
+                                    FirebaseDatabase.getInstance().getReference().child("india")
+                                            .child(currentState)
+                                            .child(districts.getKey())
+                                            .child("constituancy")
+                                            .child(constituencies.getKey())
+                                            .child("PostID")
+                                            .child(key)
+                                            .setValue("1").addOnCompleteListener(new OnCompleteListener<Void>() {
+                                        @Override
+                                        public void onComplete(@NonNull Task<Void> task) {
+                                            Toast.makeText(AddPostActivity.this,"posted in all districts con",Toast.LENGTH_SHORT).show();
+
+                                        }
+                                    });
+                                }
+
+                            }
+                        }
+
+                    }
+                }
+            }
+
+            @Override
+            public void onCancelled(DatabaseError databaseError) {
+
+            }
+        };
+        query.addValueEventListener(valueEventListener);
+    }
+
+    private void postedInAllConstituencies(final String State, final String District, final String postKey) {
+
+        Query query= FirebaseDatabase.getInstance().getReference().child("States");
+        ValueEventListener valueEventListener=new ValueEventListener() {
+            @Override
+            public void onDataChange(DataSnapshot dataSnapshot) {
+                if (dataSnapshot.exists()){
+                    for (DataSnapshot states:dataSnapshot.getChildren()){
+                        Log.e("states",states.getKey());
+                        if(states.getKey().equalsIgnoreCase(State)){
+                            for (DataSnapshot districts: states.child("MLA").child("district").getChildren()){
+                                Log.e("districts",districts.getKey());
+                                if (districts.getKey().equalsIgnoreCase(District)){
+                                    for (DataSnapshot constituencies:districts.child("Constituancy").getChildren()){
+                                        Log.e("constituencies",constituencies.getKey());
+                                        FirebaseDatabase.getInstance().getReference().child("india")
+                                                .child(currentState)
+                                                .child(currentDistrict)
+                                                .child("constituancy")
+                                                .child(constituencies.getKey())
+                                                .child("PostID")
+                                                .child(postKey)
+                                                .setValue("1").addOnCompleteListener(new OnCompleteListener<Void>() {
+                                            @Override
+                                            public void onComplete(@NonNull Task<Void> task) {
+                                                Toast.makeText(AddPostActivity.this,"posted in all con",Toast.LENGTH_SHORT).show();
+
+                                            }
+                                        });
+                                    }
+                                }
+
+
+                            }
+                        }
+
+                    }
+                }
+            }
+
+            @Override
+            public void onCancelled(DatabaseError databaseError) {
+
+            }
+        };
+        query.addValueEventListener(valueEventListener);
     }
 
     private void getDistricts(final String currentState) {
+        if (currentState.equalsIgnoreCase("Select state") || currentState.equalsIgnoreCase("All")){
+            districts.clear();
+            constituency.clear();
+        }
         Query query= FirebaseDatabase.getInstance().getReference().child("States")
                 .child(currentState).child("MLA").child("district");
         ValueEventListener valueEventListener=new ValueEventListener() {
@@ -84,10 +385,13 @@ public class AddPostActivity extends AppCompatActivity {
             public void onDataChange(DataSnapshot dataSnapshot) {
                 if (dataSnapshot.exists()){
                     districts.clear();
+                    districts.add("Select district");
+                    districts.add("All");
                     for (DataSnapshot states:dataSnapshot.getChildren()){
                         Log.e("states",states.getKey());
                         districts.add(states.getKey());
                     }
+
                     districtAdapter= new ArrayAdapter(getApplicationContext(),android.R.layout.simple_spinner_item,districts);
                     districtAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
                     spinnerDistrict.setAdapter(districtAdapter);
@@ -116,6 +420,9 @@ public class AddPostActivity extends AppCompatActivity {
     }
 
     private void getConstituency(String state, String currentDistrict) {
+        if (currentDistrict.equalsIgnoreCase("Select district") || currentDistrict.equalsIgnoreCase("All") ){
+            constituency.clear();
+        }
         Query query= FirebaseDatabase.getInstance().getReference().child("States")
                 .child(state).child("MLA").child("district").child(currentDistrict).child("Constituancy");
         ValueEventListener valueEventListener=new ValueEventListener() {
@@ -123,6 +430,8 @@ public class AddPostActivity extends AppCompatActivity {
             public void onDataChange(DataSnapshot dataSnapshot) {
                 if (dataSnapshot.exists()){
                     constituency.clear();
+                    constituency.add("Select constituency");
+                    constituency.add("All");
                     for (DataSnapshot states:dataSnapshot.getChildren()){
                         Log.e("states",states.getKey());
                         constituency.add(states.getKey());
@@ -130,6 +439,18 @@ public class AddPostActivity extends AppCompatActivity {
                     constituencyAdapter= new ArrayAdapter(getApplicationContext(),android.R.layout.simple_spinner_item,constituency);
                     constituencyAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
                     spinnerConstituency.setAdapter(constituencyAdapter);
+
+                    spinnerConstituency.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+                        @Override
+                        public void onItemSelected(AdapterView<?> adapterView, View view, int i, long l) {
+                            currentConstituency=adapterView.getSelectedItem().toString();
+                        }
+
+                        @Override
+                        public void onNothingSelected(AdapterView<?> adapterView) {
+
+                        }
+                    });
                 }
             }
 
@@ -148,6 +469,8 @@ public class AddPostActivity extends AppCompatActivity {
             public void onDataChange(DataSnapshot dataSnapshot) {
               if (dataSnapshot.exists()){
                   state.clear();
+                  state.add("Select state");
+                  state.add("All");
                   for (DataSnapshot states:dataSnapshot.getChildren()){
                       Log.e("states",states.getKey());
                       state.add(states.getKey());

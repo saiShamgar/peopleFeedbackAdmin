@@ -26,6 +26,7 @@ import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.Query;
 import com.google.firebase.database.ValueEventListener;
 import com.shamgar.peoplefeedbackadmin.R;
+import com.shamgar.peoplefeedbackadmin.models.SpamModel;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -111,15 +112,8 @@ public class SpammedRecyclerAdapter extends RecyclerView.Adapter<SpammedRecycler
                 builder.setPositiveButton("Ok", new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
-                        FirebaseDatabase.getInstance().getReference().child("Posts")
-                                .child(keys.get(position)).removeValue().addOnCompleteListener(new OnCompleteListener<Void>() {
-                            @Override
-                            public void onComplete(@NonNull Task<Void> task) {
-                                if (task.isSuccessful()){
-                                    Toast.makeText(context,"post deleted",Toast.LENGTH_SHORT).show();
-                                }
-                            }
-                        });
+
+                            getSpammedPostDetails(keys.get(position));
                     }
                 });
                 builder.setNegativeButton("Cancel", new DialogInterface.OnClickListener() {
@@ -134,6 +128,88 @@ public class SpammedRecyclerAdapter extends RecyclerView.Adapter<SpammedRecycler
             }
         });
 
+
+    }
+
+    private void getSpammedPostDetails(final String key)
+    {
+        Query query=FirebaseDatabase.getInstance().getReference().child("Posts")
+                .child(key);
+        ValueEventListener valueEventListener=new ValueEventListener() {
+            @Override
+            public void onDataChange(DataSnapshot dataSnapshot)
+            {
+                if (dataSnapshot.exists()){
+                    SpamModel model=new SpamModel();
+
+                    model.setConstituency(dataSnapshot.child("constituancy").getValue().toString());
+                    model.setState(dataSnapshot.child("state").getValue().toString());
+                    model.setDistrict(dataSnapshot.child("district").getValue().toString());
+                    model.setTagid(dataSnapshot.child("tagId").getValue().toString());
+                    model.setUserNum(dataSnapshot.child("user").getValue().toString());
+
+                    Log.e("constituency",model.getConstituency());
+                    Log.e("state",model.getState());
+                    Log.e("tagID",model.getTagid());
+                    Log.e("district",model.getDistrict());
+
+                    FirebaseDatabase.getInstance().getReference().child("india")
+                            .child(model.getState())
+                            .child(model.getDistrict())
+                            .child("constituancy")
+                            .child(model.getConstituency())
+                            .child("postID")
+                            .child(key).setValue("0")
+                            .addOnCompleteListener(new OnCompleteListener<Void>() {
+                                @Override
+                                public void onComplete(@NonNull Task<Void> task) {
+                                    if (task.isSuccessful()){
+                                        Log.e("task","completed");
+                                    }
+                                }
+                            });
+
+                    FirebaseDatabase.getInstance().getReference().child("india")
+                            .child(model.getState())
+                            .child(model.getDistrict())
+                            .child(model.getTagid())
+                            .child("postID")
+                            .child(key).setValue("0")
+                            .addOnCompleteListener(new OnCompleteListener<Void>() {
+                                @Override
+                                public void onComplete(@NonNull Task<Void> task) {
+                                    if (task.isSuccessful()){
+                                        Log.e("task","completed");
+                                    }
+                                }
+                            });
+
+
+                    FirebaseDatabase.getInstance().getReference().child("people")
+                            .child(model.getUserNum().substring(3))
+                            .child("postedPost")
+                            .child(key)
+                            .setValue("0")
+                            .addOnCompleteListener(new OnCompleteListener<Void>() {
+                                @Override
+                                public void onComplete(@NonNull Task<Void> task) {
+                                    if (task.isSuccessful()){
+                                        Log.e("task","people node completed");
+                                    }
+                                }
+                            });
+
+                }
+
+            }
+
+            @Override
+            public void onCancelled(DatabaseError databaseError) {
+
+            }
+        };
+
+        query.addValueEventListener(valueEventListener);
 
     }
 
